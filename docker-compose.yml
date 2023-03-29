@@ -1,0 +1,10 @@
+version: "3"
+services:
+  ppi-web-app-uplink:
+    # if something fails or the server is restarted, the container will restart
+    restart: always 
+    container_name: ppi-web-app-uplink
+    image: ppi-web-app-uplink
+    build: 
+      # build the iris clasifier image from the Dockerfile in the current directory
+      context: . 

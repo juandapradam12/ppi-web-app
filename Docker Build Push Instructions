@@ -1,0 +1,16 @@
+# Build 
+docker-compose --file docker-compose.yml up --detach
+
+# Check
+docker ps 
+docker images
+
+# Verify Login 
+docker login 
+ 
+# Tag 
+docker tag a7bdb07db2ad pradamalagonjd12/ppi-web-app-uplink:latest
+
+# Push 
+docker push pradamalagonjd12/ppi-web-app-uplink
+ 
