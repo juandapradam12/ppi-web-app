@@ -20,12 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from ppi.explain import feature_contributions
-from ppi.io import DATA_RAW, MODELS_DIR, load_match_meta, load_match_stats
+from ppi.io import DATA_RAW, MODELS_DIR, list_matches, load_match_meta, load_match_stats
 from ppi.models import PositionModelBundle
 from ppi.ranking import rank_players
 from ppi.schema import FEATURE_COLUMNS, FEATURE_LABELS, PROFILES
 from ppi.scoring import compute_ppi, scale_features
-from ppi.weights import load_weights, weight_vector
+from ppi.validation import compare_expert_vs_surrogate, holdout_metrics
+from ppi.weights import apply_weight_multipliers, load_weights, weight_vector
 
 # ---------------------------------------------------------------------------
 # Theme
@@ -218,12 +219,29 @@ div[data-testid="stTabs"] button {{
 
 
 @st.cache_data
-def _load_assets():
-    match = load_match_stats()
-    meta = load_match_meta()
+def _load_match_bundle(match_id: str):
+    match = load_match_stats(match_id=match_id)
+    meta = load_match_meta(match_id=match_id)
     weights = load_weights(DATA_RAW / "importance_weights.csv")
-    scored, scaler, meta_arr = compute_ppi(match, weights)
-    return match, meta, weights, scored, scaler, meta_arr
+    scored, scaler, _ = compute_ppi(match, weights)
+    return match, meta, weights, scored, scaler
+
+
+def _expert_ppi_for_inputs(
+    inputs: dict[str, float],
+    profile: str,
+    weights_df: pd.DataFrame,
+    cohort: pd.DataFrame,
+) -> float:
+    """Expert PPI for a what-if row, rescaled within cohort + hypothetical player."""
+    base_cols = [c for c in cohort.columns if c not in ("ppi", "ppi_raw")]
+    row = {col: float(inputs[col]) for col in FEATURE_COLUMNS}
+    row.update({"name": "__whatif__", "profile": profile})
+    if "match_id" in cohort.columns:
+        row["match_id"] = cohort["match_id"].iloc[0]
+    trial = pd.concat([cohort[base_cols], pd.DataFrame([row])], ignore_index=True)
+    rescored, _, _ = compute_ppi(trial, weights_df)
+    return float(rescored.loc[rescored["name"] == "__whatif__", "ppi"].iloc[0])
 
 
 @st.cache_resource
@@ -317,6 +335,14 @@ def tab_squad(scored: pd.DataFrame, weights: pd.DataFrame, meta: dict) -> None:
     show["ppi"] = show["ppi"].round(2)
     show = show.rename(columns={"rank": "Rank", "name": "Player", "profile": "Profile", "ppi": "PPI", "playing_time": "Minutes"})
     st.dataframe(show, use_container_width=True, hide_index=True)
+
+    csv_bytes = show.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download ranking (CSV)",
+        data=csv_bytes,
+        file_name=f"ppi_ranking_{meta.get('match_id', 'match')}.csv",
+        mime="text/csv",
+    )
 
 
 def tab_player(scored: pd.DataFrame, weights: pd.DataFrame, scaler: MinMaxScaler) -> None:
@@ -419,9 +445,12 @@ def tab_whatif(bundle: PositionModelBundle | None, weights: pd.DataFrame, scored
         st.warning("Models not found. Run `python scripts/train.py` first.")
         return
 
+    player_options = scored.sort_values("ppi", ascending=False)["name"].tolist()
+    default_idx = player_options.index("Raphinha") if "Raphinha" in player_options else 0
     seed_name = st.selectbox(
         "Start from player",
-        ["Custom blank"] + scored.sort_values("ppi", ascending=False)["name"].tolist(),
+        ["Custom blank"] + player_options,
+        index=default_idx + 1 if player_options else 0,
     )
     if seed_name == "Custom blank":
         seed = {c: 0.0 for c in FEATURE_COLUMNS}
@@ -468,14 +497,15 @@ def tab_whatif(bundle: PositionModelBundle | None, weights: pd.DataFrame, scored
         inputs["offsides"] = st.number_input("Offsides", 0, 5, int(seed["offsides"]))
         inputs["outcome"] = st.selectbox("Team won?", [1, 0], index=0 if seed["outcome"] >= 0.5 else 1, format_func=lambda x: "Yes" if x == 1 else "No")
 
+    expert_live = _expert_ppi_for_inputs(inputs, profile, weights, scored)
     prediction = bundle.predict_row(profile, inputs)
     st.markdown(
         f"""
         <div class="metric-strip">
-          <div class="metric-cell"><div class="label">Predicted PPI</div><div class="value">{prediction:.2f}</div></div>
-          <div class="metric-cell"><div class="label">Profile</div><div class="value">{profile}</div></div>
-          <div class="metric-cell"><div class="label">Goals + assists</div><div class="value">{inputs['goals'] + inputs['assists']:.0f}</div></div>
-          <div class="metric-cell"><div class="label">Surrogate</div><div class="value">Linear</div></div>
+          <div class="metric-cell"><div class="label">Expert PPI</div><div class="value">{expert_live:.2f}</div></div>
+          <div class="metric-cell"><div class="label">Surrogate PPI</div><div class="value">{prediction:.2f}</div></div>
+          <div class="metric-cell"><div class="label">Delta</div><div class="value">{prediction - expert_live:+.2f}</div></div>
+          <div class="metric-cell"><div class="label">G + A</div><div class="value">{inputs['goals'] + inputs['assists']:.0f}</div></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -498,12 +528,115 @@ def tab_whatif(bundle: PositionModelBundle | None, weights: pd.DataFrame, scored
     st.plotly_chart(_plotly_layout(fig, height=380), use_container_width=True)
 
     if bundle.metrics:
-        with st.expander("Surrogate model fit"):
-            metrics_df = pd.DataFrame(bundle.metrics).T.reset_index().rename(columns={"index": "profile"})
-            st.dataframe(metrics_df, use_container_width=True, hide_index=True)
+        with st.expander("Training metrics (synthetic hold-in)"):
+            rows = [
+                {"profile": k, **v}
+                for k, v in bundle.metrics.items()
+                if not str(k).startswith("_") and k != "holdout"
+            ]
+            if rows:
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
-def tab_method(weights: pd.DataFrame, meta: dict) -> None:
+def tab_surrogate(
+    match_df: pd.DataFrame,
+    weights: pd.DataFrame,
+    bundle: PositionModelBundle | None,
+    meta: dict,
+) -> None:
+    st.markdown('<h2 class="section-title">Surrogate check</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-lead">Real match squads were <strong>held out</strong> of training. '
+        "Compare expert PPI (weights) vs the linear surrogate on the same players.</p>",
+        unsafe_allow_html=True,
+    )
+    if bundle is None:
+        st.warning("Models not found. Run `python scripts/train.py`.")
+        return
+
+    comparison = compare_expert_vs_surrogate(match_df, weights, bundle)
+    hm = holdout_metrics(match_df, weights, bundle)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Holdout MAE", f"{hm['mae']:.2f}")
+    c2.metric("Holdout R²", f"{hm['r2']:.3f}")
+    c3.metric("Rank correlation", f"{hm['spearman']:.3f}")
+    c4.metric("Players", f"{int(hm['n'])}")
+
+    fig = px.scatter(
+        comparison,
+        x="expert_ppi",
+        y="surrogate_ppi",
+        text="name",
+        color="profile",
+        color_discrete_map={
+            "Attacker": CRIMSON,
+            "Midfielder": GOLD,
+            "Defender": PITCH,
+            "Goalkeeper": NAVY,
+        },
+        labels={"expert_ppi": "Expert PPI", "surrogate_ppi": "Surrogate PPI"},
+    )
+    fig.update_traces(textposition="top center")
+    lim = [0, 10.5]
+    fig.add_shape(type="line", x0=0, y0=0, x1=10, y1=10, line=dict(dash="dash", color="#5B6B7C"))
+    fig.update_xaxes(range=lim)
+    fig.update_yaxes(range=lim)
+    st.plotly_chart(_plotly_layout(fig, height=440), use_container_width=True)
+    st.dataframe(comparison, use_container_width=True, hide_index=True)
+
+    holdout_all = bundle.metrics.get("holdout", {})
+    if holdout_all:
+        st.markdown("#### All holdout matches (from training run)")
+        st.dataframe(
+            pd.DataFrame(holdout_all).T.reset_index().rename(columns={"index": "match_id"}),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+
+def tab_weight_lab(scored: pd.DataFrame, weights: pd.DataFrame, meta: dict) -> None:
+    st.markdown('<h2 class="section-title">Weight lab</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-lead">Nudge a few domain weights and watch the squad ranking move — '
+        "shows how expert priors drive the index.</p>",
+        unsafe_allow_html=True,
+    )
+
+    profile = st.selectbox("Profile weights to edit", list(PROFILES), key="wl_profile")
+    g_mult = st.slider("Goals weight ×", 0.5, 2.0, 1.0, 0.05)
+    r_mult = st.slider("Recoveries weight ×", 0.5, 2.0, 1.0, 0.05)
+    s_mult = st.slider("Saves weight × (GK)", 0.5, 2.0, 1.0, 0.05)
+
+    multipliers = {"goals": g_mult, "recoveries": r_mult, "saves": s_mult}
+    tweaked = apply_weight_multipliers(weights, profile, multipliers)
+
+    baseline = rank_players(compute_ppi(scored.copy(), weights)[0], min_minutes=30)
+    adjusted = rank_players(compute_ppi(scored.copy(), tweaked)[0], min_minutes=30)
+
+    merged = baseline.merge(
+        adjusted[["name", "ppi"]],
+        on="name",
+        suffixes=("_base", "_adj"),
+    )
+    merged["delta"] = merged["ppi_adj"] - merged["ppi_base"]
+
+    fig = px.bar(
+        merged.sort_values("ppi_adj"),
+        x="ppi_adj",
+        y="name",
+        orientation="h",
+        color="profile",
+        hover_data=["ppi_base", "delta"],
+        labels={"ppi_adj": "PPI (adjusted weights)", "name": ""},
+    )
+    st.plotly_chart(_plotly_layout(fig, height=28 * len(merged) + 100), use_container_width=True)
+    st.caption(
+        f"Adjustments apply to **{profile}** weights only (goals ×{g_mult:.2f}, "
+        f"recoveries ×{r_mult:.2f}, saves ×{s_mult:.2f})."
+    )
+
+
+def tab_method(weights: pd.DataFrame, meta: dict, bundle: PositionModelBundle | None) -> None:
     st.markdown('<h2 class="section-title">Techniques in plain sight</h2>', unsafe_allow_html=True)
     st.markdown(
         '<p class="section-lead">The index is intentionally interpretable. '
@@ -567,6 +700,14 @@ def tab_method(weights: pd.DataFrame, meta: dict) -> None:
         f"into the PPI schema. {meta['notes']}"
     )
 
+    if bundle and bundle.metrics.get("holdout"):
+        st.markdown("#### Surrogate holdout metrics")
+        st.dataframe(
+            pd.DataFrame(bundle.metrics["holdout"]).T.reset_index().rename(columns={"index": "match_id"}),
+            use_container_width=True,
+            hide_index=True,
+        )
+
 
 def main() -> None:
     st.set_page_config(
@@ -576,23 +717,37 @@ def main() -> None:
     )
     st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 
-    match, meta, weights, scored, scaler, _ = _load_assets()
-    bundle = _load_models()
+    matches = list_matches()
+    match_labels = {m["id"]: m["label"] for m in matches}
 
     sections = [
         "Squad ranking",
         "Why this PPI?",
         "Position lens",
         "What-if",
+        "Surrogate check",
+        "Weight lab",
         "Method",
     ]
-
-    # Allow deep-links: /?page=What-if
     requested = st.query_params.get("page", sections[0])
     if requested not in sections:
         requested = sections[0]
 
     with st.sidebar:
+        st.markdown("### Match")
+        if matches:
+            qp_match = st.query_params.get("match")
+            ids = [m["id"] for m in matches]
+            default_ix = ids.index(qp_match) if qp_match in ids else 0
+            selected_id = st.selectbox(
+                "Dataset",
+                ids,
+                index=default_ix,
+                format_func=lambda mid: match_labels[mid],
+                label_visibility="collapsed",
+            )
+        else:
+            selected_id = None
         st.markdown("### Navigate")
         page = st.radio(
             "Section",
@@ -601,8 +756,16 @@ def main() -> None:
             label_visibility="collapsed",
             key="nav_radio",
         )
-        if page != requested:
-            st.query_params["page"] = page
+
+    match, meta, weights, scored, scaler = _load_match_bundle(selected_id or matches[0]["id"])
+    bundle = _load_models()
+
+    if page != requested:
+        st.query_params["page"] = page
+    if selected_id and st.query_params.get("match") != selected_id:
+        st.query_params["match"] = selected_id
+
+    with st.sidebar:
         st.markdown("---")
         st.caption(f"{meta['home_team']} {meta['score']} {meta['away_team']}")
         st.caption(meta["date"])
@@ -617,8 +780,12 @@ def main() -> None:
         tab_lens(scored, weights)
     elif page == "What-if":
         tab_whatif(bundle, weights, scored)
+    elif page == "Surrogate check":
+        tab_surrogate(match, weights, bundle, meta)
+    elif page == "Weight lab":
+        tab_weight_lab(scored, weights, meta)
     else:
-        tab_method(weights, meta)
+        tab_method(weights, meta, bundle)
 
     st.caption(
         "PPI showcase · techniques: role weights · MinMax scaling · linear surrogate · attribution · "

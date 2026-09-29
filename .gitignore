@@ -24,3 +24,10 @@ venv/
 
 # Legacy Anvil uplink keys must never return
 **/anvil_key*
+
+# Fitted artifacts (rebuild via scripts/train.py or Docker)
+models/*.joblib
+models/metrics.json
+
+# Notebook checkpoints
+.ipynb_checkpoints/

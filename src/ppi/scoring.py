@@ -72,3 +72,16 @@ def compute_ppi(
     out["ppi"] = display
     meta = np.array([raw_min, raw_max, display_scale], dtype=float)
     return out, fitted_scaler, meta
+
+
+def display_scale_from_raw(
+    raw: np.ndarray,
+    *,
+    display_scale: float = 10.0,
+) -> np.ndarray:
+    """Rescale raw PPI scores to [0, display_scale] within a cohort."""
+    raw = np.asarray(raw, dtype=float)
+    raw_min, raw_max = float(raw.min()), float(raw.max())
+    if np.isclose(raw_max, raw_min):
+        return np.full_like(raw, display_scale / 2.0)
+    return (raw - raw_min) / (raw_max - raw_min) * display_scale

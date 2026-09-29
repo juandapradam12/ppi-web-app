@@ -138,3 +138,21 @@ def weight_vector(weights_df: pd.DataFrame, profile: str) -> list[float]:
     if row.empty:
         raise ValueError(f"No weights for profile {profile!r}")
     return [float(row.iloc[0][col]) for col in FEATURE_COLUMNS]
+
+
+def apply_weight_multipliers(
+    weights_df: pd.DataFrame,
+    profile: str,
+    multipliers: dict[str, float],
+) -> pd.DataFrame:
+    """Return a copy with selected feature weights scaled (sensitivity analysis)."""
+    out = weights_df.copy()
+    idx = out.index[out["profile"] == profile]
+    if len(idx) != 1:
+        raise ValueError(f"Expected one row for profile {profile!r}")
+    i = idx[0]
+    for feature, mult in multipliers.items():
+        if feature not in FEATURE_COLUMNS:
+            raise ValueError(f"Unknown feature {feature!r}")
+        out.at[i, feature] = float(out.at[i, feature]) * float(mult)
+    return out

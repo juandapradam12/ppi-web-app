@@ -18,13 +18,14 @@ from ppi.weights import load_weights
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--match", type=Path, default=DATA_RAW / "barca_el_clasico_2025-05-11.csv")
+    parser.add_argument("--match-id", default="el-clasico-2025-05-11")
+    parser.add_argument("--match", type=Path, default=None, help="Optional CSV path override")
     parser.add_argument("--weights", type=Path, default=DATA_RAW / "importance_weights.csv")
     parser.add_argument("--min-minutes", type=float, default=30.0)
     parser.add_argument("--out", type=Path, default=DATA_PROCESSED / "el_clasico_ranked.csv")
     args = parser.parse_args()
 
-    match = load_match_stats(args.match)
+    match = load_match_stats(args.match_id) if args.match is None else load_match_stats(path=args.match)
     weights = load_weights(args.weights)
     scored, _, _ = compute_ppi(match, weights)
     ranked = rank_players(scored, min_minutes=args.min_minutes)

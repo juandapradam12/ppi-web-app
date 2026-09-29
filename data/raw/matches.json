@@ -1,0 +1,16 @@
+[
+  {
+    "id": "el-clasico-2025-05-11",
+    "label": "La Liga · Barça 4–3 Madrid (May 2025)",
+    "csv": "barca_el_clasico_2025-05-11.csv",
+    "meta": "match_meta.json",
+    "holdout": true
+  },
+  {
+    "id": "supercopa-2025-01-12",
+    "label": "Supercopa · Barça 2–5 Madrid (Jan 2025)",
+    "csv": "barca_supercopa_2025-01-12.csv",
+    "meta": "match_meta_supercopa_2025-01-12.json",
+    "holdout": true
+  }
+]
