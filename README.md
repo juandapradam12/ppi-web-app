@@ -22,7 +22,7 @@ Position-aware soccer player ranking with an interpretable pipeline and a live S
 | 5 | Surrogate stack: OLS → **RidgeCV** → **isotonic** calibrator | `src/ppi/models.py` |
 | 6 | Holdout validation (3 variants) | `src/ppi/validation.py` |
 | 7 | Minutes-weighted season PPI | `src/ppi/season.py` |
-| 7 | Attribution `wᵢ · xᵢ` | `src/ppi/explain.py` |
+| 8 | Attribution `wᵢ · xᵢ` | `src/ppi/explain.py` |
 
 ```text
 x̃ = MinMax(x)
@@ -58,9 +58,10 @@ docker compose up --build
 2. **Why this PPI?** — contribution breakdown  
 3. **Position lens** — same stats, different role weights  
 4. **What-if** — expert vs surrogate PPI side by side (default: Raphinha)  
-5. **Surrogate check** — holdout scatter + MAE / Spearman  
-6. **Weight lab** — tweak goals / recoveries / saves weights  
-7. **Method** — formula, steps, weight charts  
+5. **Surrogate check** — OLS vs Ridge vs calibrated scatter + pooled metrics  
+6. **Season view** — minutes-weighted PPI across demo matches  
+7. **Weight lab** — tweak goals / recoveries / saves weights  
+8. **Method** — formula, steps, weight charts  
 
 Deep links: `/?page=Surrogate%20check&match=el-clasico-2025-05-11`
 
