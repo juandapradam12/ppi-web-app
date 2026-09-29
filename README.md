@@ -10,6 +10,47 @@ Demo on real Barcelona fixtures (El Clásico, Supercopa, Celta) mapped from FBre
 
 > **Who it’s for:** scouts & performance analysts who need interpretable rankings · clubs exploring decision-support prototypes · DS/ML engineers showcasing end-to-end sports analytics.
 
+## Demo gallery
+
+<p align="center">
+  <img src="docs/images/squad_ranking.png" alt="Squad ranking board — El Clásico PPI leaderboard" width="900" />
+</p>
+
+<p align="center"><em>Squad ranking — Barcelona vs Real Madrid (El Clásico): role-aware PPI leaderboard</em></p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/why_this_ppi.png" alt="Feature contribution breakdown" />
+      <p align="center"><em>Why this PPI? — feature contributions</em></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/position_lens.png" alt="Position lens role comparison" />
+      <p align="center"><em>Position lens — same stats, different roles</em></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/uncertainty.png" alt="Bootstrap PPI uncertainty bands" />
+      <p align="center"><em>Uncertainty — bootstrap 90% PPI bands</em></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/model_b.png" alt="Model B pairwise ranking vs expert" />
+      <p align="center"><em>Model B — pairwise ranks vs expert</em></p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/surrogate_check.png" alt="Surrogate check leave-one-match-out" />
+      <p align="center"><em>Surrogate check — OLS / Ridge / LMO</em></p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/method.png" alt="Method techniques and formula" />
+      <p align="center"><em>Method — formula and techniques</em></p>
+    </td>
+  </tr>
+</table>
+
 **Demo matches (held out from surrogate training):**
 
 | Match | Result |
