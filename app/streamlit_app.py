@@ -579,19 +579,30 @@ def main() -> None:
     match, meta, weights, scored, scaler, _ = _load_assets()
     bundle = _load_models()
 
+    sections = [
+        "Squad ranking",
+        "Why this PPI?",
+        "Position lens",
+        "What-if",
+        "Method",
+    ]
+
+    # Allow deep-links: /?page=What-if
+    requested = st.query_params.get("page", sections[0])
+    if requested not in sections:
+        requested = sections[0]
+
     with st.sidebar:
         st.markdown("### Navigate")
         page = st.radio(
             "Section",
-            [
-                "Squad ranking",
-                "Why this PPI?",
-                "Position lens",
-                "What-if",
-                "Method",
-            ],
+            sections,
+            index=sections.index(requested),
             label_visibility="collapsed",
+            key="nav_radio",
         )
+        if page != requested:
+            st.query_params["page"] = page
         st.markdown("---")
         st.caption(f"{meta['home_team']} {meta['score']} {meta['away_team']}")
         st.caption(meta["date"])
