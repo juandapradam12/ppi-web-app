@@ -1,0 +1,31 @@
+{
+  "metrics": {
+    "Attacker": {
+      "n": 97.0,
+      "r2": 1.0,
+      "mae": 5.995204332975845e-15
+    },
+    "Midfielder": {
+      "n": 135.0,
+      "r2": 1.0,
+      "mae": 2.796117247204098e-15
+    },
+    "Defender": {
+      "n": 173.0,
+      "r2": 1.0,
+      "mae": 1.271998379641965e-15
+    },
+    "Goalkeeper": {
+      "n": 59.0,
+      "r2": 1.0,
+      "mae": 1.1842378929335002e-15
+    }
+  },
+  "display_scale": 10.0,
+  "profiles": [
+    "Attacker",
+    "Midfielder",
+    "Defender",
+    "Goalkeeper"
+  ]
+}

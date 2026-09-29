@@ -1,16 +1,11 @@
-# Build 
-docker-compose --file docker-compose.yml up --detach
+# Deprecated
 
-# Check
-docker ps 
-docker images
+Docker build/push notes for the old Anvil uplink image.
 
-# Verify Login 
-docker login 
- 
-# Tag 
-docker tag a7bdb07db2ad pradamalagonjd12/ppi-web-app-uplink:latest
+Use the new Streamlit service instead:
 
-# Push 
-docker push pradamalagonjd12/ppi-web-app-uplink
- 
+```bash
+docker compose up --build
+```
+
+Image publishes the demo on port **8501**.
