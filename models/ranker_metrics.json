@@ -1,0 +1,28 @@
+{
+  "profiles": [
+    "Attacker",
+    "Midfielder",
+    "Defender",
+    "Goalkeeper"
+  ],
+  "Attacker": {
+    "n_players": 297.0,
+    "n_pairs": 4000.0,
+    "pair_accuracy": 0.98875
+  },
+  "Midfielder": {
+    "n_players": 341.0,
+    "n_pairs": 4000.0,
+    "pair_accuracy": 0.9885
+  },
+  "Defender": {
+    "n_players": 407.0,
+    "n_pairs": 4000.0,
+    "pair_accuracy": 0.9855
+  },
+  "Goalkeeper": {
+    "n_players": 121.0,
+    "n_pairs": 4000.0,
+    "pair_accuracy": 0.983
+  }
+}

@@ -1,16 +1,23 @@
 [
   {
     "id": "el-clasico-2025-05-11",
-    "label": "La Liga · Barça 4–3 Madrid (May 2025)",
+    "label": "La Liga \u00b7 Bar\u00e7a 4\u20133 Madrid (May 2025)",
     "csv": "barca_el_clasico_2025-05-11.csv",
     "meta": "match_meta.json",
     "holdout": true
   },
   {
     "id": "supercopa-2025-01-12",
-    "label": "Supercopa · Barça 2–5 Madrid (Jan 2025)",
+    "label": "Supercopa \u00b7 Bar\u00e7a 2\u20135 Madrid (Jan 2025)",
     "csv": "barca_supercopa_2025-01-12.csv",
     "meta": "match_meta_supercopa_2025-01-12.json",
+    "holdout": true
+  },
+  {
+    "id": "celta-2025-04-19",
+    "label": "La Liga \u00b7 Bar\u00e7a 4\u20133 Celta (Apr 2025)",
+    "csv": "barca_celta_2025-04-19.csv",
+    "meta": "match_meta_celta_2025-04-19.json",
     "holdout": true
   }
 ]

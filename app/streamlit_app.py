@@ -25,7 +25,9 @@ from ppi.models import PositionModelBundle
 from ppi.ranking import rank_players
 from ppi.schema import FEATURE_COLUMNS, FEATURE_LABELS, PROFILES
 from ppi.scoring import compute_ppi, scale_features
+from ppi.ranking_model import PairwiseRanker, compare_expert_vs_ranker
 from ppi.season import season_long_frame, season_ppi_frame
+from ppi.uncertainty import bootstrap_ppi_intervals, conformal_display_band
 from ppi.validation import compare_expert_vs_variants, holdout_metrics
 from ppi.weights import apply_weight_multipliers, load_weights, weight_vector
 
@@ -250,6 +252,11 @@ def _load_models() -> PositionModelBundle | None:
     if not (MODELS_DIR / "metrics.json").exists():
         return None
     return PositionModelBundle.load(MODELS_DIR)
+
+
+@st.cache_resource
+def _load_ranker() -> PairwiseRanker | None:
+    return PairwiseRanker.load(MODELS_DIR)
 
 
 def _plotly_layout(fig: go.Figure, height: int = 420) -> go.Figure:
@@ -560,12 +567,31 @@ def tab_surrogate(
 
     pooled = bundle.metrics.get("holdout_variants", {})
     if pooled:
-        st.markdown("#### Pooled holdout metrics (all demo matches)")
+        st.markdown("#### Pooled holdout (calibrator fit on all matches)")
         st.dataframe(
             pd.DataFrame(pooled).T.reset_index().rename(columns={"index": "variant"}),
             use_container_width=True,
             hide_index=True,
         )
+
+    lmo = bundle.metrics.get("leave_one_match_out", {})
+    if lmo:
+        st.markdown("#### Leave-one-match-out calibrated (honest)")
+        st.caption(
+            "Isotonic fit on the other matches only, then evaluated on the left-out squad."
+        )
+        if "pooled" in lmo:
+            p = lmo["pooled"]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("LMO MAE", f"{p['mae']:.2f}")
+            c2.metric("LMO R²", f"{p['r2']:.3f}")
+            c3.metric("LMO Spearman", f"{p['spearman']:.3f}")
+        if "per_match" in lmo:
+            st.dataframe(
+                pd.DataFrame(lmo["per_match"]).T.reset_index().rename(columns={"index": "match_id"}),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     comparison = compare_expert_vs_variants(match_df, weights, bundle)
     variant = st.selectbox(
@@ -641,6 +667,110 @@ def tab_season(weights: pd.DataFrame) -> None:
                 title="Match PPI vs season aggregate (selected players)",
             )
             st.plotly_chart(_plotly_layout(fig, height=380), use_container_width=True)
+
+
+def tab_uncertainty(match_df: pd.DataFrame, weights: pd.DataFrame, bundle: PositionModelBundle | None) -> None:
+    st.markdown('<h2 class="section-title">Uncertainty bands</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-lead">Bootstrap PPI intervals by resampling the match cohort '
+        "(scale + ranking sensitivity). Optional conformal band from leave-one-match residuals.</p>",
+        unsafe_allow_html=True,
+    )
+    min_m = st.slider("Minimum minutes", 0, 90, 30, 5, key="unc_min")
+    n_boot = st.select_slider("Bootstrap draws", options=[100, 200, 400, 800], value=400)
+    intervals = bootstrap_ppi_intervals(
+        match_df, weights, n_boot=int(n_boot), min_minutes=float(min_m)
+    )
+    if intervals.empty:
+        st.info("No players after filter.")
+        return
+
+    q = None
+    if bundle and bundle.metrics.get("_conformal"):
+        q = float(bundle.metrics["_conformal"].get("q90", 0))
+        intervals["conf_lo"] = (intervals["ppi"] - q).clip(0, 10).round(2)
+        intervals["conf_hi"] = (intervals["ppi"] + q).clip(0, 10).round(2)
+        st.caption(f"Conformal half-width (90%, LMO residuals): ±{q:.2f}")
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=intervals["ppi"],
+            y=intervals["name"],
+            mode="markers",
+            marker=dict(color=CRIMSON, size=10),
+            name="PPI",
+            error_x=dict(
+                type="data",
+                symmetric=False,
+                array=(intervals["ppi_hi"] - intervals["ppi"]).tolist(),
+                arrayminus=(intervals["ppi"] - intervals["ppi_lo"]).tolist(),
+                color="#5B6B7C",
+            ),
+        )
+    )
+    fig.update_yaxes(autorange="reversed")
+    fig.update_layout(title="Bootstrap 90% PPI intervals")
+    st.plotly_chart(_plotly_layout(fig, height=28 * len(intervals) + 120), use_container_width=True)
+
+    show_cols = ["rank", "name", "profile", "ppi", "ppi_lo", "ppi_hi", "top3_prob", "width"]
+    if "conf_lo" in intervals.columns:
+        show_cols += ["conf_lo", "conf_hi"]
+    st.dataframe(intervals[show_cols], use_container_width=True, hide_index=True)
+    st.caption("top3_prob = share of bootstrap draws where the player ranks in the top 3.")
+
+
+def tab_model_b(
+    match_df: pd.DataFrame,
+    weights: pd.DataFrame,
+    ranker: PairwiseRanker | None,
+) -> None:
+    st.markdown('<h2 class="section-title">Model B · pairwise ranking</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-lead">Optional rank-first surrogate: logistic regression on '
+        "<code>xᵢ − xⱼ</code> predicting whether expert PPIᵢ &gt; PPIⱼ (within profile). "
+        "Player score = average P(beat teammate).</p>",
+        unsafe_allow_html=True,
+    )
+    if ranker is None:
+        st.warning("Ranker not found. Run `python scripts/train.py`.")
+        return
+
+    comparison = compare_expert_vs_ranker(match_df, weights, ranker)
+    # Spearman between expert rank and model B rank
+    rho = comparison["rank_expert"].corr(comparison["rank_b"], method="spearman")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Rank Spearman", f"{rho:.3f}")
+    c2.metric("Mean |Δ rank|", f"{comparison['rank_delta'].abs().mean():.2f}")
+    c3.metric("Players", len(comparison))
+
+    fig = px.scatter(
+        comparison,
+        x="rank_expert",
+        y="rank_b",
+        text="name",
+        color="profile",
+        color_discrete_map={
+            "Attacker": CRIMSON,
+            "Midfielder": GOLD,
+            "Defender": PITCH,
+            "Goalkeeper": NAVY,
+        },
+        labels={"rank_expert": "Expert rank", "rank_b": "Model B rank"},
+    )
+    fig.update_traces(textposition="top center")
+    n = len(comparison)
+    fig.add_shape(type="line", x0=1, y0=1, x1=n, y1=n, line=dict(dash="dash", color="#5B6B7C"))
+    st.plotly_chart(_plotly_layout(fig, height=420), use_container_width=True)
+    st.dataframe(comparison, use_container_width=True, hide_index=True)
+
+    with st.expander("Training pair accuracy"):
+        rows = [
+            {"profile": p, **ranker.metrics[p]}
+            for p in ranker.metrics.get("profiles", [])
+        ]
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def tab_weight_lab(scored: pd.DataFrame, weights: pd.DataFrame, meta: dict) -> None:
@@ -775,6 +905,8 @@ def main() -> None:
         "Position lens",
         "What-if",
         "Surrogate check",
+        "Uncertainty",
+        "Model B",
         "Season view",
         "Weight lab",
         "Method",
@@ -809,6 +941,7 @@ def main() -> None:
 
     match, meta, weights, scored, scaler = _load_match_bundle(selected_id or matches[0]["id"])
     bundle = _load_models()
+    ranker = _load_ranker()
 
     if page != requested:
         st.query_params["page"] = page
@@ -832,6 +965,10 @@ def main() -> None:
         tab_whatif(bundle, weights, scored)
     elif page == "Surrogate check":
         tab_surrogate(match, weights, bundle, meta)
+    elif page == "Uncertainty":
+        tab_uncertainty(match, weights, bundle)
+    elif page == "Model B":
+        tab_model_b(match, weights, ranker)
     elif page == "Season view":
         tab_season(weights)
     elif page == "Weight lab":

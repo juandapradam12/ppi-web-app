@@ -44,6 +44,69 @@ def holdout_metrics(
     }
 
 
+def leave_one_match_out_metrics(
+    holdout_frames: list[pd.DataFrame],
+    weights_df: pd.DataFrame,
+    bundle: PositionModelBundle,
+) -> dict:
+    """
+    For each match, fit isotonic on the other matches' (ridge_display, expert) pairs,
+    then evaluate calibrated predictions on the left-out match.
+    """
+    from sklearn.isotonic import IsotonicRegression
+
+    per_match: dict[str, dict[str, float]] = {}
+    all_true: list[float] = []
+    all_pred: list[float] = []
+    residuals: list[float] = []
+
+    prepared = []
+    for frame in holdout_frames:
+        expert, _, _ = compute_ppi(frame, weights_df, display_scale=bundle.display_scale)
+        ridge = bundle.batch_display_predictions(frame, variant="ridge")
+        mid = str(frame["match_id"].iloc[0])
+        prepared.append((mid, frame, expert["ppi"].values, ridge))
+
+    for i, (mid, frame, y_true, ridge) in enumerate(prepared):
+        xs, ys = [], []
+        for j, (_, _, y_j, ridge_j) in enumerate(prepared):
+            if i == j:
+                continue
+            xs.extend(ridge_j.tolist())
+            ys.extend(y_j.tolist())
+        if len(xs) < 5:
+            y_pred = ridge
+        else:
+            iso = IsotonicRegression(out_of_bounds="clip")
+            iso.fit(np.array(xs), np.array(ys))
+            y_pred = iso.predict(ridge)
+
+        rho = pd.Series(y_true).corr(pd.Series(y_pred), method="spearman")
+        per_match[mid] = {
+            "n": float(len(y_true)),
+            "mae": float(mean_absolute_error(y_true, y_pred)),
+            "r2": float(r2_score(y_true, y_pred)),
+            "spearman": float(rho) if rho is not None and not np.isnan(rho) else float("nan"),
+        }
+        all_true.extend(y_true.tolist())
+        all_pred.extend(np.asarray(y_pred).tolist())
+        residuals.extend((np.asarray(y_pred) - y_true).tolist())
+
+    y_true = np.array(all_true)
+    y_pred = np.array(all_pred)
+    rho = pd.Series(y_true).corr(pd.Series(y_pred), method="spearman")
+    return {
+        "per_match": per_match,
+        "pooled": {
+            "n": float(len(y_true)),
+            "mae": float(mean_absolute_error(y_true, y_pred)),
+            "r2": float(r2_score(y_true, y_pred)),
+            "spearman": float(rho) if rho is not None and not np.isnan(rho) else float("nan"),
+        },
+        "pooled_residuals": residuals,
+    }
+
+
 def holdout_metrics_all_variants(
     holdout_frames: list[pd.DataFrame],
     weights_df: pd.DataFrame,

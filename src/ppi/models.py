@@ -241,8 +241,17 @@ def train_position_models(
     )
 
     if holdout_frames:
-        from .validation import holdout_metrics, holdout_metrics_all_variants
+        from .validation import (
+            holdout_metrics,
+            holdout_metrics_all_variants,
+            leave_one_match_out_metrics,
+        )
 
+        # Honest evaluation: calibrate on other matches, score the left-out match
+        lmo = leave_one_match_out_metrics(holdout_frames, weights_df, bundle)
+        metrics["leave_one_match_out"] = lmo
+
+        # Production calibrator fit on all demo holdouts (documented in UI/README)
         bundle.calibrator = _fit_isotonic_calibrator(holdout_frames, weights_df, bundle)
         metrics["holdout_variants"] = holdout_metrics_all_variants(
             holdout_frames, weights_df, bundle
@@ -253,5 +262,17 @@ def train_position_models(
             )
             for frame in holdout_frames
         }
+        # Conformal residual scale from LMO calibrated errors
+        if lmo.get("pooled_residuals"):
+            res = np.asarray(lmo["pooled_residuals"], dtype=float)
+            metrics["_conformal"] = {
+                "q90": float(np.quantile(np.abs(res), 0.90, method="higher")),
+                "q80": float(np.quantile(np.abs(res), 0.80, method="higher")),
+                "n": float(len(res)),
+            }
+            # drop bulky residuals from persisted metrics
+            metrics["leave_one_match_out"] = {
+                k: v for k, v in lmo.items() if k != "pooled_residuals"
+            }
 
     return bundle

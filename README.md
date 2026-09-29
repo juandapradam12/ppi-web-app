@@ -10,6 +10,7 @@ Position-aware soccer player ranking with an interpretable pipeline and a live S
 |-------|--------|
 | [La Liga · El Clásico (May 2025)](https://fbref.com/en/matches/f1804d9c/El-Clasico-Barcelona-Real-Madrid-May-11-2025-La-Liga) | Barça **4–3** |
 | [Supercopa semi (Jan 2025)](https://fbref.com/en/matches/0c126206/El-Clasico-Real-Madrid-Barcelona-January-12-2025-Supercopa-de-Espana) | Barça **2–5** |
+| La Liga · vs Celta (Apr 2025) | Barça **4–3** |
 
 ## Techniques
 
@@ -19,10 +20,12 @@ Position-aware soccer player ranking with an interpretable pipeline and a live S
 | 2 | MinMax scaling | `src/ppi/scoring.py` |
 | 3 | Position score `w · x̃` | `src/ppi/scoring.py` |
 | 4 | Cohort rescale → 0–10 | `src/ppi/scoring.py` |
-| 5 | Surrogate stack: OLS → **RidgeCV** → **isotonic** calibrator | `src/ppi/models.py` |
-| 6 | Holdout validation (3 variants) | `src/ppi/validation.py` |
+| 5 | Surrogate stack: OLS → **RidgeCV** → **isotonic** (+ **LMO** metrics) | `src/ppi/models.py` |
+| 6 | Holdout validation (3 variants + leave-one-match-out) | `src/ppi/validation.py` |
 | 7 | Minutes-weighted season PPI | `src/ppi/season.py` |
-| 8 | Attribution `wᵢ · xᵢ` | `src/ppi/explain.py` |
+| 8 | Bootstrap / conformal uncertainty | `src/ppi/uncertainty.py` |
+| 9 | Model B pairwise ranking | `src/ppi/ranking_model.py` |
+| 10 | Attribution `wᵢ · xᵢ` | `src/ppi/explain.py` |
 
 ```text
 x̃ = MinMax(x)
@@ -58,10 +61,12 @@ docker compose up --build
 2. **Why this PPI?** — contribution breakdown  
 3. **Position lens** — same stats, different role weights  
 4. **What-if** — expert vs surrogate PPI side by side (default: Raphinha)  
-5. **Surrogate check** — OLS vs Ridge vs calibrated scatter + pooled metrics  
-6. **Season view** — minutes-weighted PPI across demo matches  
-7. **Weight lab** — tweak goals / recoveries / saves weights  
-8. **Method** — formula, steps, weight charts  
+5. **Surrogate check** — OLS / Ridge / calibrated + **leave-one-match-out**  
+6. **Uncertainty** — bootstrap PPI bands + top-3 probability  
+7. **Model B** — pairwise ranking vs expert ranks  
+8. **Season view** — minutes-weighted PPI across demo matches  
+9. **Weight lab** — tweak goals / recoveries / saves weights  
+10. **Method** — formula, steps, weight charts  
 
 Deep links: `/?page=Surrogate%20check&match=el-clasico-2025-05-11`
 

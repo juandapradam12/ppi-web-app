@@ -1,0 +1,13 @@
+{
+  "match_id": "celta-2025-04-19",
+  "competition": "La Liga \u2014 Matchweek 32",
+  "date": "2025-04-19",
+  "venue": "Estadi Ol\u00edmpic Llu\u00eds Companys, Barcelona",
+  "home_team": "Barcelona",
+  "away_team": "Celta Vigo",
+  "score": "4\u20133",
+  "result": "W",
+  "source": "FBref match logs + box score (StatMuse/LaLiga)",
+  "source_url": "https://fbref.com/en/squads/206d90db/2024-2025/c12/Barcelona-Stats-La-Liga",
+  "notes": "Core attacking/midfield lines (Raphinha, Lewandowski, Pedri, Yamal) from FBref 2024-25 match logs. Minutes/goals/assists cross-checked with StatMuse/LaLiga. Remaining volume stats mapped into PPI schema; possession share \u2248 touches/640."
+}
