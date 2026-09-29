@@ -33,7 +33,10 @@ PPI_raw = w_profile · x̃
 PPI     = rescale(PPI_raw) × 10   # within match squad
 ```
 
-Real match CSVs are **not** in the synthetic training set; surrogates are evaluated on holdout squads (see **Surrogate check** in the app).
+Real match CSVs are **not** in the synthetic training set. **Surrogate check** reports:
+
+1. **In-sample calibrator** fit on all demo matches (optimistic).
+2. **Leave-one-match-out** isotonic (honest): calibrate on the other matches, score the left-out squad.
 
 ## Quick start
 
