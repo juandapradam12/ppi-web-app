@@ -2,9 +2,15 @@
 
 [![CI](https://github.com/juandapradam12/ppi-web-app/actions/workflows/ci.yml/badge.svg)](https://github.com/juandapradam12/ppi-web-app/actions/workflows/ci.yml)
 
-Position-aware soccer player ranking with an interpretable pipeline and a live Streamlit demo.
+**Turn raw match stats into clear, role-aware player rankings — explainable enough for the pitch room, rigorous enough for a data science portfolio.**
 
-**Demo matches (FBref, held out from surrogate training):**
+PPI combines **domain expertise** (position-specific importance weights) with **transparent machine learning** (Ridge surrogates, calibration, pairwise ranking) so every score can be justified: *why this player, why this rank, how sure are we?*
+
+Demo on real Barcelona fixtures (El Clásico, Supercopa, Celta) mapped from FBref — squad boards, contribution breakdowns, what-if analysis, uncertainty bands, and season aggregation in one Streamlit app.
+
+> **Who it’s for:** scouts & performance analysts who need interpretable rankings · clubs exploring decision-support prototypes · DS/ML engineers showcasing end-to-end sports analytics.
+
+**Demo matches (held out from surrogate training):**
 
 | Match | Result |
 |-------|--------|
