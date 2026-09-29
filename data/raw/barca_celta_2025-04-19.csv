@@ -1,0 +1,14 @@
+name,profile,playing_time,goals,assists,key_passes,completed_passes,success_rate,possession_participation,touches,shots,shots_on_goal,crosses,turnovers,recoveries,fouls,yellow_cards,red_cards,saves,clean_sheets,offsides,outcome,match_id
+Raphinha,Attacker,90,2,1,3,46,79.3,11.56,74,6,2,4,4,2,1,1,0,0,0,0,1,celta-2025-04-19
+Ferran Torres,Attacker,58,1,0,1,18,75.0,5.47,35,3,1,1,2,1,1,0,0,0,0,0,1,celta-2025-04-19
+Robert Lewandowski,Attacker,77,0,0,1,11,68.8,3.75,24,2,0,0,2,1,1,0,0,0,0,0,1,celta-2025-04-19
+Lamine Yamal,Attacker,32,0,1,2,19,79.2,4.22,27,0,0,2,2,1,1,0,0,0,0,0,1,celta-2025-04-19
+Dani Olmo,Midfielder,32,1,0,1,14,85.0,3.44,22,2,1,0,1,1,0,0,0,0,0,0,1,celta-2025-04-19
+Fermin Lopez,Midfielder,58,0,0,1,28,88.0,6.25,40,2,1,0,2,2,1,0,0,0,0,0,1,celta-2025-04-19
+Pedri,Midfielder,90,0,0,3,105,91.3,20.16,129,0,0,1,5,7,1,0,0,0,0,0,1,celta-2025-04-19
+Frenkie de Jong,Midfielder,90,0,0,1,78,92.0,14.84,95,0,0,0,2,5,1,0,0,0,0,0,1,celta-2025-04-19
+Gerard Martin,Defender,90,0,0,0,42,84.0,8.59,55,0,0,2,1,3,1,0,0,0,0,0,1,celta-2025-04-19
+Inigo Martinez,Defender,90,0,1,1,58,88.0,10.94,70,0,0,0,1,5,1,1,0,0,0,0,1,celta-2025-04-19
+Pau Cubarsi,Defender,90,0,0,0,52,90.0,9.69,62,0,0,0,1,4,1,0,0,0,0,0,1,celta-2025-04-19
+Jules Kounde,Defender,90,0,0,1,48,87.0,9.38,60,1,0,1,1,3,1,0,0,0,0,0,1,celta-2025-04-19
+Wojciech Szczesny,Goalkeeper,90,0,0,0,22,80.0,4.38,28,0,0,0,0,1,0,0,0,5,0,0,1,celta-2025-04-19

@@ -1,0 +1,13 @@
+{
+  "match_id": "supercopa-2025-01-12",
+  "competition": "Supercopa de España — Semifinal",
+  "date": "2025-01-12",
+  "venue": "King Abdullah Sports City, Jeddah",
+  "home_team": "Barcelona",
+  "away_team": "Real Madrid",
+  "score": "2–5",
+  "result": "L",
+  "source": "FBref match report",
+  "source_url": "https://fbref.com/en/matches/0c126206/El-Clasico-Real-Madrid-Barcelona-January-12-2025-Supercopa-de-Espana",
+  "notes": "Barcelona squad stats mapped from FBref summary tables into the PPI schema. Possession share uses team touches (~478). Outcome=0 (loss)."
+}

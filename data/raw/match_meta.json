@@ -1,0 +1,13 @@
+{
+  "match_id": "el-clasico-2025-05-11",
+  "competition": "La Liga — Matchweek 35",
+  "date": "2025-05-11",
+  "venue": "Estadi Olímpic Lluís Companys, Barcelona",
+  "home_team": "Barcelona",
+  "away_team": "Real Madrid",
+  "score": "4–3",
+  "result": "W",
+  "source": "FBref match report",
+  "source_url": "https://fbref.com/en/matches/f1804d9c/El-Clasico-Barcelona-Real-Madrid-May-11-2025-La-Liga",
+  "notes": "Player stats mapped from FBref summary/passing/defense/possession/misc tables into the PPI feature schema. Possession share ≈ player touches / team touches (602). Turnovers ≈ miscontrols + dispossessions. Goalkeeper saves from team save tally."
+}

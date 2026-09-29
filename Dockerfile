@@ -1,14 +1,19 @@
-FROM python:3.8.16
-ENV PYTHONUNBUFFERED=1
+FROM python:3.11-slim
 
-ADD requirements.txt /
-RUN pip install -r /requirements.txt
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-ADD . .
+WORKDIR /app
 
-ADD player_performance_index.py /
-ADD ppi_app.py /
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-CMD [ "python", "./player_performance_index.py" ]
-CMD [ "python", "./ppi_app.py" ]
+COPY . .
 
+RUN python scripts/build_training_data.py && python scripts/train.py
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
