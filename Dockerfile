@@ -12,7 +12,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
-RUN python scripts/train.py
+RUN python scripts/build_training_data.py && python scripts/train.py
 
 EXPOSE 8501
 
