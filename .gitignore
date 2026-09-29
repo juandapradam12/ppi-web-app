@@ -27,6 +27,7 @@ venv/
 
 # Fitted artifacts (rebuild via scripts/train.py or Docker)
 models/*.joblib
+models/*.json
 models/metrics.json
 
 # Notebook checkpoints
