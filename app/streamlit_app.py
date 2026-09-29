@@ -571,34 +571,47 @@ def tab_method(weights: pd.DataFrame, meta: dict) -> None:
 def main() -> None:
     st.set_page_config(
         page_title="PPI · Player Performance Index",
-        page_icon="⚽",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     st.markdown(f"<style>{CUSTOM_CSS}</style>", unsafe_allow_html=True)
 
     match, meta, weights, scored, scaler, _ = _load_assets()
     bundle = _load_models()
 
+    with st.sidebar:
+        st.markdown("### Navigate")
+        page = st.radio(
+            "Section",
+            [
+                "Squad ranking",
+                "Why this PPI?",
+                "Position lens",
+                "What-if",
+                "Method",
+            ],
+            label_visibility="collapsed",
+        )
+        st.markdown("---")
+        st.caption(f"{meta['home_team']} {meta['score']} {meta['away_team']}")
+        st.caption(meta["date"])
+
     render_hero(meta)
 
-    tabs = st.tabs(
-        ["Squad ranking", "Why this PPI?", "Position lens", "What-if", "Method"]
-    )
-    with tabs[0]:
+    if page == "Squad ranking":
         tab_squad(scored, weights, meta)
-    with tabs[1]:
+    elif page == "Why this PPI?":
         tab_player(scored, weights, scaler)
-    with tabs[2]:
+    elif page == "Position lens":
         tab_lens(scored, weights)
-    with tabs[3]:
+    elif page == "What-if":
         tab_whatif(bundle, weights, scored)
-    with tabs[4]:
+    else:
         tab_method(weights, meta)
 
     st.caption(
         "PPI showcase · techniques: role weights · MinMax scaling · linear surrogate · attribution · "
-        f"demo data © stats via FBref ({meta['date']})"
+        f"demo data via FBref ({meta['date']})"
     )
 
 
