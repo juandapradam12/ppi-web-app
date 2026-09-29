@@ -54,18 +54,18 @@ def main() -> None:
 
     print(f"Saved models to {args.out}")
     for profile, metrics in bundle.metrics.items():
-        if profile.startswith("_") or profile == "holdout":
+        if profile.startswith("_") or profile in ("holdout", "holdout_variants"):
             continue
         print(
             f"  {profile:12s} n={metrics.get('n_train', 0):.0f}  "
-            f"R²={metrics.get('r2_train', float('nan')):.3f}  "
-            f"MAE={metrics.get('mae_train', float('nan')):.3f}"
+            f"Ridge R²={metrics.get('r2_ridge', float('nan')):.3f}  "
+            f"α={metrics.get('ridge_alpha', float('nan')):.4f}"
         )
-    if "holdout" in bundle.metrics:
-        print("Holdout (real matches, expert display PPI vs surrogate):")
-        for mid, hm in bundle.metrics["holdout"].items():
+    if "holdout_variants" in bundle.metrics:
+        print("Holdout pooled (expert display PPI vs surrogate variant):")
+        for variant, hm in bundle.metrics["holdout_variants"].items():
             print(
-                f"  {mid}: MAE={hm['mae']:.3f}  R²={hm['r2']:.3f}  "
+                f"  {variant:12s} MAE={hm['mae']:.3f}  R²={hm['r2']:.3f}  "
                 f"Spearman={hm['spearman']:.3f}  n={hm['n']:.0f}"
             )
 

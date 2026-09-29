@@ -25,7 +25,8 @@ from ppi.models import PositionModelBundle
 from ppi.ranking import rank_players
 from ppi.schema import FEATURE_COLUMNS, FEATURE_LABELS, PROFILES
 from ppi.scoring import compute_ppi, scale_features
-from ppi.validation import compare_expert_vs_surrogate, holdout_metrics
+from ppi.season import season_long_frame, season_ppi_frame
+from ppi.validation import compare_expert_vs_variants, holdout_metrics
 from ppi.weights import apply_weight_multipliers, load_weights, weight_vector
 
 # ---------------------------------------------------------------------------
@@ -498,18 +499,21 @@ def tab_whatif(bundle: PositionModelBundle | None, weights: pd.DataFrame, scored
         inputs["outcome"] = st.selectbox("Team won?", [1, 0], index=0 if seed["outcome"] >= 0.5 else 1, format_func=lambda x: "Yes" if x == 1 else "No")
 
     expert_live = _expert_ppi_for_inputs(inputs, profile, weights, scored)
-    prediction = bundle.predict_row(profile, inputs)
+    pred_ols = bundle.predict_display(profile, inputs, variant="ols")
+    pred_ridge = bundle.predict_display(profile, inputs, variant="ridge")
+    pred_cal = bundle.predict_row(profile, inputs)
     st.markdown(
         f"""
         <div class="metric-strip">
           <div class="metric-cell"><div class="label">Expert PPI</div><div class="value">{expert_live:.2f}</div></div>
-          <div class="metric-cell"><div class="label">Surrogate PPI</div><div class="value">{prediction:.2f}</div></div>
-          <div class="metric-cell"><div class="label">Delta</div><div class="value">{prediction - expert_live:+.2f}</div></div>
-          <div class="metric-cell"><div class="label">G + A</div><div class="value">{inputs['goals'] + inputs['assists']:.0f}</div></div>
+          <div class="metric-cell"><div class="label">Calibrated</div><div class="value">{pred_cal:.2f}</div></div>
+          <div class="metric-cell"><div class="label">Ridge</div><div class="value">{pred_ridge:.2f}</div></div>
+          <div class="metric-cell"><div class="label">OLS</div><div class="value">{pred_ols:.2f}</div></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    st.caption(f"Δ calibrated − expert: **{pred_cal - expert_live:+.2f}** · G+A: {inputs['goals'] + inputs['assists']:.0f}")
 
     # Contribution under expert weights using the bundle scaler
     scaled_vec = bundle.scaler.transform(np.array([[inputs[c] for c in FEATURE_COLUMNS]], dtype=float))[0]
@@ -546,26 +550,41 @@ def tab_surrogate(
 ) -> None:
     st.markdown('<h2 class="section-title">Surrogate check</h2>', unsafe_allow_html=True)
     st.markdown(
-        '<p class="section-lead">Real match squads were <strong>held out</strong> of training. '
-        "Compare expert PPI (weights) vs the linear surrogate on the same players.</p>",
+        '<p class="section-lead">Holdout squads: compare expert PPI to <strong>OLS</strong>, '
+        "<strong>RidgeCV</strong>, and <strong>isotonic-calibrated</strong> Ridge (fit on holdout).</p>",
         unsafe_allow_html=True,
     )
     if bundle is None:
         st.warning("Models not found. Run `python scripts/train.py`.")
         return
 
-    comparison = compare_expert_vs_surrogate(match_df, weights, bundle)
-    hm = holdout_metrics(match_df, weights, bundle)
+    pooled = bundle.metrics.get("holdout_variants", {})
+    if pooled:
+        st.markdown("#### Pooled holdout metrics (all demo matches)")
+        st.dataframe(
+            pd.DataFrame(pooled).T.reset_index().rename(columns={"index": "variant"}),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    comparison = compare_expert_vs_variants(match_df, weights, bundle)
+    variant = st.selectbox(
+        "Scatter variant",
+        ["calibrated", "ridge", "ols"],
+        format_func=lambda v: {"calibrated": "Calibrated Ridge", "ridge": "RidgeCV", "ols": "OLS"}[v],
+    )
+    y_col = {"calibrated": "calibrated_ppi", "ridge": "ridge_ppi", "ols": "ols_ppi"}[variant]
+    hm = holdout_metrics(match_df, weights, bundle, variant=variant)
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Holdout MAE", f"{hm['mae']:.2f}")
-    c2.metric("Holdout R²", f"{hm['r2']:.3f}")
-    c3.metric("Rank correlation", f"{hm['spearman']:.3f}")
+    c1.metric("MAE", f"{hm['mae']:.2f}")
+    c2.metric("R²", f"{hm['r2']:.3f}")
+    c3.metric("Spearman", f"{hm['spearman']:.3f}")
     c4.metric("Players", f"{int(hm['n'])}")
 
     fig = px.scatter(
         comparison,
         x="expert_ppi",
-        y="surrogate_ppi",
+        y=y_col,
         text="name",
         color="profile",
         color_discrete_map={
@@ -574,7 +593,7 @@ def tab_surrogate(
             "Defender": PITCH,
             "Goalkeeper": NAVY,
         },
-        labels={"expert_ppi": "Expert PPI", "surrogate_ppi": "Surrogate PPI"},
+        labels={"expert_ppi": "Expert PPI", y_col: variant},
     )
     fig.update_traces(textposition="top center")
     lim = [0, 10.5]
@@ -584,14 +603,44 @@ def tab_surrogate(
     st.plotly_chart(_plotly_layout(fig, height=440), use_container_width=True)
     st.dataframe(comparison, use_container_width=True, hide_index=True)
 
-    holdout_all = bundle.metrics.get("holdout", {})
-    if holdout_all:
-        st.markdown("#### All holdout matches (from training run)")
-        st.dataframe(
-            pd.DataFrame(holdout_all).T.reset_index().rename(columns={"index": "match_id"}),
-            use_container_width=True,
-            hide_index=True,
-        )
+
+def tab_season(weights: pd.DataFrame) -> None:
+    st.markdown('<h2 class="section-title">Season view</h2>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="section-lead">Minutes-weighted PPI across all demo matches in '
+        "<code>matches.json</code>: "
+        "<code>season_ppi = Σ(ppi×min) / Σ(min)</code>.</p>",
+        unsafe_allow_html=True,
+    )
+    season = season_ppi_frame(weights)
+    if season.empty:
+        st.info("No matches registered.")
+        return
+
+    multi = season[season["matches"] > 1]
+    st.metric("Players in pool", len(season))
+    if not multi.empty:
+        st.markdown("#### Multi-match players")
+        st.dataframe(multi, use_container_width=True, hide_index=True)
+
+    st.markdown("#### Season ranking")
+    st.dataframe(season, use_container_width=True, hide_index=True)
+
+    long = season_long_frame(weights)
+    if long["name"].nunique() >= 1 and long["match_id"].nunique() >= 2:
+        pivot_names = multi["name"].tolist() if not multi.empty else season.head(6)["name"].tolist()
+        subset = long[long["name"].isin(pivot_names)]
+        if not subset.empty:
+            fig = px.bar(
+                subset,
+                x="match_label",
+                y="ppi",
+                color="name",
+                barmode="group",
+                labels={"ppi": "Match PPI", "match_label": "Match"},
+                title="Match PPI vs season aggregate (selected players)",
+            )
+            st.plotly_chart(_plotly_layout(fig, height=380), use_container_width=True)
 
 
 def tab_weight_lab(scored: pd.DataFrame, weights: pd.DataFrame, meta: dict) -> None:
@@ -700,10 +749,10 @@ def tab_method(weights: pd.DataFrame, meta: dict, bundle: PositionModelBundle | 
         f"into the PPI schema. {meta['notes']}"
     )
 
-    if bundle and bundle.metrics.get("holdout"):
-        st.markdown("#### Surrogate holdout metrics")
+    if bundle and bundle.metrics.get("holdout_variants"):
+        st.markdown("#### Surrogate variants (pooled holdout)")
         st.dataframe(
-            pd.DataFrame(bundle.metrics["holdout"]).T.reset_index().rename(columns={"index": "match_id"}),
+            pd.DataFrame(bundle.metrics["holdout_variants"]).T.reset_index().rename(columns={"index": "variant"}),
             use_container_width=True,
             hide_index=True,
         )
@@ -726,6 +775,7 @@ def main() -> None:
         "Position lens",
         "What-if",
         "Surrogate check",
+        "Season view",
         "Weight lab",
         "Method",
     ]
@@ -782,6 +832,8 @@ def main() -> None:
         tab_whatif(bundle, weights, scored)
     elif page == "Surrogate check":
         tab_surrogate(match, weights, bundle, meta)
+    elif page == "Season view":
+        tab_season(weights)
     elif page == "Weight lab":
         tab_weight_lab(scored, weights, meta)
     else:

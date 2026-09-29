@@ -29,10 +29,16 @@ def bundle():
 def test_holdout_metrics_reasonable(bundle: PositionModelBundle) -> None:
     match = load_match_stats(match_id="el-clasico-2025-05-11")
     weights = load_weights(ROOT / "data" / "raw" / "importance_weights.csv")
-    hm = holdout_metrics(match, weights, bundle)
+    hm = holdout_metrics(match, weights, bundle, variant="calibrated")
     assert hm["n"] >= 10
     assert hm["mae"] < 2.0
     assert hm["spearman"] > 0.8
+
+
+def test_holdout_variants_order(bundle: PositionModelBundle) -> None:
+    variants = bundle.metrics.get("holdout_variants", {})
+    assert "ols" in variants and "ridge" in variants and "calibrated" in variants
+    assert variants["calibrated"]["mae"] <= variants["ols"]["mae"] + 0.5
 
 
 def test_compare_table(bundle: PositionModelBundle) -> None:

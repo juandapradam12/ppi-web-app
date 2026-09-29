@@ -19,8 +19,9 @@ Position-aware soccer player ranking with an interpretable pipeline and a live S
 | 2 | MinMax scaling | `src/ppi/scoring.py` |
 | 3 | Position score `w · x̃` | `src/ppi/scoring.py` |
 | 4 | Cohort rescale → 0–10 | `src/ppi/scoring.py` |
-| 5 | Linear surrogate (targets **raw** PPI) | `src/ppi/models.py` |
-| 6 | Holdout validation vs expert | `src/ppi/validation.py` |
+| 5 | Surrogate stack: OLS → **RidgeCV** → **isotonic** calibrator | `src/ppi/models.py` |
+| 6 | Holdout validation (3 variants) | `src/ppi/validation.py` |
+| 7 | Minutes-weighted season PPI | `src/ppi/season.py` |
 | 7 | Attribution `wᵢ · xᵢ` | `src/ppi/explain.py` |
 
 ```text
